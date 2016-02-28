@@ -1,0 +1,42 @@
+(STOCK/BLOCK,7.5,7.5,0.203,3.823E-307,4,0.07)
+G10 L1 P1 R0.1875 Z1
+T1 M6
+o100 sub
+    G90           ( absolute )
+    G00 Z0.25     ( move to 1/4" above the work )
+    G01 Z0        ( just touching the work )
+    G91           ( turn on relative moves )
+    G01 Z-0.035   ( cut 35 thousandths pass )
+    G01 Y-4.0     ( move 4 inches negative to cut pocket )
+    G01 X0.025    ( widen the pocket to 0.400 )
+    G01 Y4        ( move 4 inches positive )
+    G01 Z-0.035   ( total DOC 70 thousandths )
+    G01 X-0.025   ( move back to the left side of the pocket)
+    G01 Y-4.0     ( recut at 70 thousandths deep )
+    G01 X0.025    ( widen the pocket to 0.400 )
+    G01 Y4        ( finish recutting pocket )
+    G90           ( absolute mode )
+    G00 Z0.25     ( return to 1/4" above the work )
+o100 endsub
+
+G90               ( absolute mode )
+G40               ( cancel compensation )
+G00 X-0.5 Y0.5    ( move to a zero position that allows compensation lead-in )
+G00 Z0.5          ( move to 1/2" above the work )
+G41.1 D0.375      ( compensate for 3/8 cutter )
+S4300             ( set RPM [irrelevant on the taig] )
+M3                ( spindle on )
+G00 X0.55 Y0      ( start at the 0 position of the first pocket )
+o200 repeat [7]
+    o100 call     ( call the subroutine to cut a 70 thou deep pocket, 4 inches long )
+    G91           ( relative mode )
+    G00 X1        ( move an inch positive on the X axis )
+    G90           ( absolute mode )
+    M1            ( pause if switch is on )
+o200 endrepeat
+M3                ( spindle off )
+G90               ( absolute mode )
+G40               ( cancel compensation )
+G00 Z0.5
+G00 X0 Y0
+M2
