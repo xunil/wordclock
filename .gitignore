@@ -1,2 +1,4 @@
 *.dxf
 *.dwg
+*.bin
+*.pyc
