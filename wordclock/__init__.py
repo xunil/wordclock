@@ -1,3 +1,7 @@
+from datetime import datetime
+from config import *
+import time, machine, neopixel, ssd1306, network
+
 WORDS = {
 	'it': [63],
 	'is': [64, 65],
@@ -61,12 +65,6 @@ MINUTE_WORDS = [
 	['ha', 'lf']
 ]
 
-# wc
-# initialize wifi
-# intialize RTC
-# from datetime tuple, figure out what words to light
-
-
 # HH:00 o clock
 # HH:05 five past
 # HH:10 ten past
@@ -80,14 +78,79 @@ MINUTE_WORDS = [
 # HH:50 ten to
 # HH:55 five to
 
-from datetime import datetime
-import time
+
+
+# Set up the attached WS2812B strips to be all on at a dim white.
+
 class WordClock:
 	def __init__(self, dt=datetime.today()):
 		self.hour = dt.hour % 12
 		self.minute = dt.minute
 		self.pixels = []
 		self.lit_words = []
+
+	# Broken out from __init__ because this way we can
+	# test the class without a real MicroPython environment
+	def setup(self):
+		self.init_screen()
+		self.status_message([
+			['WordClock', 10, 10],
+			['Starting', 15, 20]
+		])
+		self.init_neopixels()
+		if not self.connect_to_wifi():
+			self.init_wifi_ap()
+
+	def init_screen(self):
+		self.i2c = machine.I2C(scl=machine.Pin(I2C_SCL_PIN), sda=machine.Pin(I2C_SDA_PIN))
+		self.oled = ssd1306.SSD1306_I2C(128, 64, self.i2c)
+
+	def status_message(self, lines):
+		self.oled.fill(0)
+		for line in lines:
+			self.oled.text(*line)
+		self.oled.show()
+
+	def init_neopixels(self):
+		self.status_message([
+			['Initializing', 10, 10],
+			['LEDs', 15, 20]
+		])
+		self.np = neopixel.NeoPixel(machine.pin(LED_DATA_PIN), NUM_LEDS)
+		for i in range(0, NUM_LEDS):
+			self.np[i] = (32, 32, 32)
+		self.np.write()
+
+	def connect_to_wifi(self):
+		self.sta_if = network.WLAN(network.STA_IF)
+		self.sta_if.active(True)
+
+		for ssid, password in WIFI_NETWORKS.iteritems():
+			start_time = int(time.time())
+			self.sta_if.connect(ssid, password)
+			while True:
+				time.sleep(1)
+				if self.sta_if.isconnected():
+					ifconfig = self.sta_if.ifconfig()
+					self.status_message([
+						['Connected to', 10, 10],
+						[ssid, 10, 20],
+						[ifconfig[0], 10, 30] # IP address
+					])
+					return True
+				time_elapsed = (int(time.time()) - start_time)
+				if time_elapsed > WIFI_CONNECT_TIMEOUT:
+					break
+				self.status_message([
+					['Connecting to', 10, 10],
+					[ssid, 10, 20],
+					['Timeout in %ds' % (WIFI_CONNECT_TIMEOUT - time_elapsed), 10, 30]
+				])
+		return False
+
+	def init_wifi_ap(self):
+		# TODO: Set up a wireless network
+		pass
 
 	def update(self, dt=datetime.today()):
 		self.hour = dt.hour % 12
@@ -115,3 +178,27 @@ class WordClock:
 		self.pixels = [pixel_nums for word in self.lit_words for pixel_nums in WORDS[word]]
 		self.pixels.sort()
 
+	def render(self):
+		# TODO: Do something more interesting than a half-bright white
+		color = (128,128,128)
+		for pixel in self.pixels:
+			self.np[pixel] = color
+		self.np.write()
+		self.render_words_to_oled()
+
+	def render_words_to_oled(self):
+		MAX_LINE_LEN = 128 / 8
+		words_to_render = self.lit_words
+		line = ''
+		line_num = 1
+		oled_lines = []
+		while len(words_to_render) > 0:
+			word = words_to_render.pop()
+			if (len(line) + len(word) + 1) < MAX_LINE_LEN:
+				line = line + ' ' + word
+			else:
+				oled_lines.append([line, 10, line_num*10])
+				line_num = line_num + 1
+				line = ''
+				words_to_render.unshift(word)
+		self.status_message(words_to_render)
