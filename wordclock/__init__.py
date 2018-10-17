@@ -1,6 +1,12 @@
-from datetime import datetime
+import utime
 from config import *
-import time, machine, neopixel, ssd1306, network
+import time
+import machine
+import neopixel
+import ssd1306
+import network
+import ntptime
+
 
 WORDS = {
 	'it': [63],
@@ -83,9 +89,13 @@ MINUTE_WORDS = [
 # Set up the attached WS2812B strips to be all on at a dim white.
 
 class WordClock:
-	def __init__(self, dt=datetime.today()):
-		self.hour = dt.hour % 12
-		self.minute = dt.minute
+	def __init__(self, dt=None):
+		if dt is not None:
+			self.hour = dt[3] % 12
+			self.minute = dt[4]
+		else:
+			self.hour = 0
+			self.minute = 0
 		self.pixels = []
 		self.lit_words = []
 
@@ -100,6 +110,9 @@ class WordClock:
 		self.init_neopixels()
 		if not self.connect_to_wifi():
 			self.init_wifi_ap()
+		else:
+			self.init_time()
+
 
 	def init_screen(self):
 		self.i2c = machine.I2C(scl=machine.Pin(I2C_SCL_PIN), sda=machine.Pin(I2C_SDA_PIN))
@@ -111,12 +124,26 @@ class WordClock:
 			self.oled.text(*line)
 		self.oled.show()
 
+	def init_time(self):
+		time_set = False
+		while not time_set:
+			print("Attempting to get NTP time")
+			try:
+				ntptime.settime()
+				print("Success")
+				time_set = True
+			except OSError:
+				print("Failed; retrying in 5 seconds")
+				time.sleep(5)
+		self.rtc = machine.RTC()
+		print("RTC datetime is now %s" % repr(self.rtc.datetime()))
+
 	def init_neopixels(self):
 		self.status_message([
 			['Initializing', 10, 10],
 			['LEDs', 15, 20]
 		])
-		self.np = neopixel.NeoPixel(machine.pin(LED_DATA_PIN), NUM_LEDS)
+		self.np = neopixel.NeoPixel(machine.Pin(LED_DATA_PIN), NUM_LEDS)
 		for i in range(0, NUM_LEDS):
 			self.np[i] = (32, 32, 32)
 		self.np.write()
@@ -125,7 +152,7 @@ class WordClock:
 		self.sta_if = network.WLAN(network.STA_IF)
 		self.sta_if.active(True)
 
-		for ssid, password in WIFI_NETWORKS.iteritems():
+		for ssid, password in WIFI_NETWORKS.items():
 			start_time = int(time.time())
 			self.sta_if.connect(ssid, password)
 			while True:
@@ -152,9 +179,11 @@ class WordClock:
 		# TODO: Set up a wireless network
 		pass
 
-	def update(self, dt=datetime.today()):
-		self.hour = dt.hour % 12
-		self.minute = dt.minute
+	def update(self, dt=None):
+		if dt is None:
+			dt = self.rtc.datetime()
+		self.hour = dt[3] % 12
+		self.minute = dt[4]
 		self.update_words()
 		self.update_pixels()
 
@@ -164,10 +193,11 @@ class WordClock:
 		direction = None
 		if self.minute >= 35:
 			direction = 'to'
-			index = len(MINUTE_WORDS) - ((self.minute - 30) / 5) - 1
+			index = int(len(MINUTE_WORDS) - ((self.minute - 30) / 5) - 1)
 		elif self.minute >= 5 and self.minute < 35:
 			direction = 'past'
-			index = self.minute / 5
+			index = int(self.minute / 5)
+		print("In update_words, index is %s" % repr(index))
 		self.lit_words.extend(MINUTE_WORDS[index])
 		if direction is not None:
 			self.lit_words.append(direction)
@@ -187,18 +217,26 @@ class WordClock:
 		self.render_words_to_oled()
 
 	def render_words_to_oled(self):
-		MAX_LINE_LEN = 128 / 8
-		words_to_render = self.lit_words
+		MAX_LINE_LEN = 128 / 10
+		words_to_render = self.lit_words.copy()
 		line = ''
 		line_num = 1
 		oled_lines = []
 		while len(words_to_render) > 0:
-			word = words_to_render.pop()
+			print("words_to_render: %s" % repr(words_to_render))
+			word = words_to_render.pop(0)
+			print("word: %s" % word)
 			if (len(line) + len(word) + 1) < MAX_LINE_LEN:
 				line = line + ' ' + word
+				print("Length test successful, line now %s" % line)
 			else:
 				oled_lines.append([line, 10, line_num*10])
 				line_num = line_num + 1
 				line = ''
-				words_to_render.unshift(word)
-		self.status_message(words_to_render)
+				words_to_render.insert(0, word)
+				print("Length test unsuccessful, line num now %d, line empty, words_to_render now %s, len(words_to_render) now %d" % (line_num, words_to_render, len(words_to_render)))
+		if len(line) > 0:
+			oled_lines.append([line, 10, line_num*10])
+
+		print(repr(oled_lines))
+		self.status_message(oled_lines)
