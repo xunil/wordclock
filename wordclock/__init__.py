@@ -91,8 +91,8 @@ MINUTE_WORDS = [
 class WordClock:
 	def __init__(self, dt=None):
 		if dt is not None:
-			self.hour = dt[3] % 12
-			self.minute = dt[4]
+			self.hour = dt[4] % 12
+			self.minute = dt[5]
 		else:
 			self.hour = 0
 			self.minute = 0
@@ -182,8 +182,9 @@ class WordClock:
 	def update(self, dt=None):
 		if dt is None:
 			dt = self.rtc.datetime()
-		self.hour = dt[3] % 12
-		self.minute = dt[4]
+			print("Updated datetime to %s" % repr(dt))
+		self.hour = dt[4] % 12
+		self.minute = dt[5]
 		self.update_words()
 		self.update_pixels()
 
@@ -197,7 +198,6 @@ class WordClock:
 		elif self.minute >= 5 and self.minute < 35:
 			direction = 'past'
 			index = int(self.minute / 5)
-		print("In update_words, index is %s" % repr(index))
 		self.lit_words.extend(MINUTE_WORDS[index])
 		if direction is not None:
 			self.lit_words.append(direction)
@@ -223,18 +223,17 @@ class WordClock:
 		line_num = 1
 		oled_lines = []
 		while len(words_to_render) > 0:
-			print("words_to_render: %s" % repr(words_to_render))
 			word = words_to_render.pop(0)
-			print("word: %s" % word)
 			if (len(line) + len(word) + 1) < MAX_LINE_LEN:
-				line = line + ' ' + word
-				print("Length test successful, line now %s" % line)
+				if len(line) == 0:
+					line = word
+				else:
+					line = line + ' ' + word
 			else:
 				oled_lines.append([line, 10, line_num*10])
 				line_num = line_num + 1
 				line = ''
 				words_to_render.insert(0, word)
-				print("Length test unsuccessful, line num now %d, line empty, words_to_render now %s, len(words_to_render) now %d" % (line_num, words_to_render, len(words_to_render)))
 		if len(line) > 0:
 			oled_lines.append([line, 10, line_num*10])
 
