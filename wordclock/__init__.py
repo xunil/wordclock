@@ -9,41 +9,41 @@ import ntptime
 
 
 WORDS = {
-	'it': [63],
-	'is': [64, 65],
-	'twenty': [66, 67, 68, 69],
-	'five_minute': [70, 71],
-	'ten': [61, 62],
-	'ha': [59, 60],
-	'lf': [58],
-	'pp': [57],
-	'quarter': [53, 54, 55, 56],
-	'past': [44, 45],
-	'bi': [46],
-	'to': [47],
-	'one': [49],
-	'happy_y': [50],
-	'two': [51, 52],
-	'three': [41, 42, 43],
-	'fou': [38, 38],
-	'r': [37],
-	'th': [36],
-	'five': [34, 35],
-	'six': [24, 25],
-	'da': [26],
-	'seven': [27, 28, 29],
-	'birthday_y': [30],
-	'eight': [31, 32, 33],
-	'nine': [22, 23],
-	'd': [21],
-	't': [19],
-	'en': [16, 17, 18],
-	'is_denise': [14, 15],
-	'e': [12],
-	'leven': [10, 11],
-	'twelve': [1, 2, 3],
-	'o': [5],
-	'clock': [8, 9]
+    'it': [62],
+    'is': [63, 64],
+    'twenty': [65, 66, 67, 68],
+    'five_minute': [69, 70],
+    'ten': [60, 61],
+    'ha': [58, 59],
+    'lf': [57],
+    'pp': [56],
+    'quarter': [52, 53, 54, 55],
+    'past': [43, 44],
+    'bi': [45],
+    'to': [46],
+    'one': [48],
+    'happy_y': [49],
+    'two': [50, 51],
+    'three': [40, 41, 42],
+    'fou': [37, 37],
+    'r': [36],
+    'th': [35],
+    'five': [33, 34],
+    'six': [23, 24],
+    'da': [25],
+    'seven': [26, 27, 28],
+    'birthday_y': [29],
+    'eight': [30, 31, 32],
+    'nine': [21, 22],
+    'd': [20],
+    't': [18],
+    'en': [15, 16, 17],
+    'is_denise': [13, 14],
+    'e': [11],
+    'leven': [9, 10],
+    'twelve': [0, 1, 2],
+    'o': [4],
+    'clock': [7, 8]
 }
 
 HOUR_WORDS = [
@@ -98,6 +98,7 @@ class WordClock:
 			self.minute = 0
 		self.pixels = []
 		self.lit_words = []
+		self.tz_offset = -8  # Add one hour during DST
 
 	# Broken out from __init__ because this way we can
 	# test the class without a real MicroPython environment
@@ -179,11 +180,25 @@ class WordClock:
 		# TODO: Set up a wireless network
 		pass
 
+	def is_dst(self, dt):
+		# Algorithm lifted from https://stackoverflow.com/questions/5590429/calculating-daylight-saving-time-from-only-date
+	 	year,month,day,dow,hour,minute,second,rest = dt
+	 	if month < 3 or month > 11:
+	 		return False
+ 		if month > 3 and month < 11:
+ 			return True
+		previous_sunday = day - dow
+		if month == 3:
+			return previous_sunday >= 8
+		return previous_sunday <= 0
+
 	def update(self, dt=None):
 		if dt is None:
 			dt = self.rtc.datetime()
-			print("Updated datetime to %s" % repr(dt))
-		self.hour = dt[4] % 12
+		if self.is_dst(dt):
+			self.hour = (dt[4] + (self.tz_offset + 1)) % 12
+		else:
+			self.hour = (dt[4] + self.tz_offset) % 12
 		self.minute = dt[5]
 		self.update_words()
 		self.update_pixels()
