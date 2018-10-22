@@ -10,8 +10,9 @@ import ntptime
 
 WORDS = {
     'it': [62],
-    'is': [63, 64],
-    'twenty': [65, 66, 67, 68],
+    'is': [63, 64], # Trying to solve H lighting up
+    #'twenty': [65, 66, 67, 68],
+    'twenty': [65, 66, 67],
     'five_minute': [69, 70],
     'ten': [60, 61],
     'ha': [58, 59],
@@ -37,7 +38,8 @@ WORDS = {
     'nine': [21, 22],
     'd': [20],
     't': [18],
-    'en': [15, 16, 17],
+    #'en': [15, 16, 17],
+    'en': [16, 17],
     'is_denise': [13, 14],
     'e': [11],
     'leven': [9, 10],
@@ -57,7 +59,7 @@ HOUR_WORDS = [
 	['seven'],
 	['eight'],
 	['nine'],
-	['ten'],
+	['t', 'en'],
 	['e', 'leven']
 ]
 
@@ -144,7 +146,7 @@ class WordClock:
 				time.sleep(1)
 				if self.sta_if.isconnected():
 					ifconfig = self.sta_if.ifconfig()
-					self.status_message('Connected to %s (%s)' % (ssid, ifconfig[0])) # IP address
+					self.status_message('Connected to %s, %s' % (ssid, ifconfig[0])) # IP address
 					return True
 				time_elapsed = (int(time.time()) - start_time)
 				if time_elapsed > WIFI_CONNECT_TIMEOUT:
@@ -183,16 +185,18 @@ class WordClock:
 		self.lit_words = ['it', 'is']  # always light these
 		index = 0
 		direction = None
+		hour_offset = 0
 		if self.minute >= 35:
 			direction = 'to'
 			index = int(len(MINUTE_WORDS) - ((self.minute - 30) / 5))
+			hour_offset = 1
 		elif self.minute >= 5 and self.minute < 35:
 			direction = 'past'
 			index = int(self.minute / 5)
 		self.lit_words.extend(MINUTE_WORDS[index])
 		if direction is not None:
 			self.lit_words.append(direction)
-		self.lit_words.extend(HOUR_WORDS[self.hour])
+		self.lit_words.extend(HOUR_WORDS[(self.hour + hour_offset) % 12]) # When direction changes to 'to', display the next hour, not the current one
 		self.lit_words.extend(['o', 'clock'])
 
 	def update_pixels(self):
@@ -201,9 +205,15 @@ class WordClock:
 
 	def render(self):
 		# TODO: Do something more interesting than a half-bright white
+		print("render: self.pixels is %s" % repr(self.pixels))
 		color = (128,128,128)
-		for pixel in self.pixels:
-			self.np[pixel] = color
+		for i in range(0, NUM_LEDS):
+			if i in self.pixels:
+				self.np[i] = color
+			else:
+				self.np[i] = (0,0,0)
+		#for pixel in self.pixels:
+		#	self.np[pixel] = color
 		self.np.write()
 		self.render_words_to_oled()
 
@@ -216,8 +226,16 @@ class WordClock:
 		line = ''
 		line_num = 1
 		oled_lines = []
+		print("words_to_render: %s" % repr(words_to_render))
 		while len(words_to_render) > 0:
 			word = words_to_render.pop(0)
+			if len(word) >= MAX_LINE_LEN:
+				print("Word is too long: %s" % word)
+				# Just too long to display, break it up
+				remainder = word[(MAX_LINE_LEN - 1):]
+				word = word[:(MAX_LINE_LEN)]
+				words_to_render.insert(0, remainder)
+				print("Now %s and %s" % (word, remainder))
 			if (len(line) + len(word) + 1) < MAX_LINE_LEN:
 				if len(line) == 0:
 					line = word
