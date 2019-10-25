@@ -5,7 +5,7 @@ wc = WordClock()
 wc.setup()
 
 while True:
-	time.sleep(20)
 	wc.update()
 	wc.render()
-	
+	time.sleep(20)
+

@@ -26,7 +26,7 @@ WORDS = {
     'happy_y': [49],
     'two': [50, 51],
     'three': [40, 41, 42],
-    'fou': [37, 37],
+    'fou': [37, 38],
     'r': [36],
     'th': [35],
     'five': [33, 34],
@@ -182,11 +182,14 @@ class WordClock:
 		self.update_pixels()
 
 	def update_words(self):
-		self.lit_words = ['it', 'is']  # always light these
+		self.lit_words = []
 		index = 0
 		direction = None
 		hour_offset = 0
-		if self.minute >= 35:
+		if self.minute >= 0 and self.minute < 5:
+			self.lit_words.extend(['it', 'is'])
+			self.lit_words.extend(['o', 'clock'])
+		elif self.minute >= 35:
 			direction = 'to'
 			index = int(len(MINUTE_WORDS) - ((self.minute - 30) / 5))
 			hour_offset = 1
@@ -197,7 +200,9 @@ class WordClock:
 		if direction is not None:
 			self.lit_words.append(direction)
 		self.lit_words.extend(HOUR_WORDS[(self.hour + hour_offset) % 12]) # When direction changes to 'to', display the next hour, not the current one
-		self.lit_words.extend(['o', 'clock'])
+
+	def birthday_message(self):
+		self.lit_words = []
 
 	def update_pixels(self):
 		self.pixels = [pixel_nums for word in self.lit_words for pixel_nums in WORDS[word]]
@@ -206,7 +211,7 @@ class WordClock:
 	def render(self):
 		# TODO: Do something more interesting than a half-bright white
 		print("render: self.pixels is %s" % repr(self.pixels))
-		color = (128,128,128)
+		color = (192,192,192)
 		for i in range(0, NUM_LEDS):
 			if i in self.pixels:
 				self.np[i] = color
@@ -226,7 +231,7 @@ class WordClock:
 		line = ''
 		line_num = 1
 		oled_lines = []
-		print("words_to_render: %s" % repr(words_to_render))
+		# print("words_to_render: %s" % repr(words_to_render))
 		while len(words_to_render) > 0:
 			word = words_to_render.pop(0)
 			if len(word) >= MAX_LINE_LEN:
